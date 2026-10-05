@@ -10,6 +10,7 @@ import { NyaLingoSettingTab } from "./settings-tab";
 import { TranslationService } from "./service";
 import { obsidianHttpTransport } from "./http";
 import { openSetupWizard } from "./setup-wizard";
+import { startOfflineServer } from "./mtran-server";
 
 /** NyaLingo 对外暴露的公共 API（供 NyaHome / NyaReader 等插件调用）。 */
 export interface NyaLingoApi {
@@ -27,6 +28,8 @@ export interface NyaLingoApi {
 	openSetupWizard(): void;
 	/** 触发离线引擎下载某个语言对（MTranServer 自动下载）。 */
 	downloadOfflineLanguage(to: string, from?: string): Promise<void>;
+	/** 启动本地离线翻译服务（MTranServer）。 */
+	startOfflineServer(): Promise<{ ok: boolean; detail?: string }>;
 	/** 清空翻译缓存。 */
 	clearCache(): Promise<void>;
 }
@@ -69,6 +72,11 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 		});
 
 		this.addSettingTab(new NyaLingoSettingTab(this.app, this));
+
+		// 自动启动本地翻译服务（若设置开启且未在运行）
+		if (this.settings.autoStartOffline && this.settings.provider === "mtran") {
+			void this.autoStartOfflineService();
+		}
 	}
 
 	onunload(): void {
@@ -141,6 +149,17 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 
 	downloadOfflineLanguage(to: string, from = "en"): Promise<void> {
 		return this.service.downloadOfflineLanguage(to, from);
+	}
+
+	startOfflineServer(): Promise<{ ok: boolean; detail?: string }> {
+		return startOfflineServer(obsidianHttpTransport, this.settings.offlineEndpoint);
+	}
+
+	/** 加载时非阻塞探测并启动本地服务；结果通过 Notice 提示。 */
+	private async autoStartOfflineService(): Promise<void> {
+		const r = await this.startOfflineServer();
+		if (r.ok) new Notice(`NyaLingo：本地翻译服务已就绪（${r.detail ?? "运行中"}）。`);
+		else new Notice(`NyaLingo：未能自动启动本地翻译服务 — ${r.detail ?? "未知错误"}`, 8000);
 	}
 
 	async clearCache(): Promise<void> {

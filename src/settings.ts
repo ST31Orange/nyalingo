@@ -17,6 +17,8 @@ export interface NyaLingoSettings {
 	offlineToken: string;
 	/** 已启用的离线语言包（目标语言代码）；默认仅中英互译（zh-Hans）。 */
 	installedLanguages: string[];
+	/** 插件加载时若检测到 MTranServer 未运行，则自动尝试启动。 */
+	autoStartOffline: boolean;
 	/** OpenAI 兼容 */
 	openaiBaseUrl: string;
 	openaiApiKey: string;
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: NyaLingoSettings = {
 	offlineEndpoint: "http://127.0.0.1:8989",
 	offlineToken: "",
 	installedLanguages: ["zh-Hans"],
+	autoStartOffline: true,
 	openaiBaseUrl: "https://api.openai.com/v1",
 	openaiApiKey: "",
 	openaiModel: "gpt-4o-mini",
@@ -84,6 +87,7 @@ export function normalizeSettings(raw: unknown): NyaLingoSettings {
 		offlineEndpoint: strOr(v.offlineEndpoint, "http://127.0.0.1:8989"),
 		offlineToken: strOr(v.offlineToken, ""),
 		installedLanguages: arrayOfStrings(v.installedLanguages).length ? arrayOfStrings(v.installedLanguages) : ["zh-Hans"],
+		autoStartOffline: v.autoStartOffline !== false,
 		openaiBaseUrl: strOr(v.openaiBaseUrl, DEFAULT_SETTINGS.openaiBaseUrl),
 		openaiApiKey: strOr(v.openaiApiKey, ""),
 		openaiModel: strOr(v.openaiModel, DEFAULT_SETTINGS.openaiModel),

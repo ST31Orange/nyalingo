@@ -77,6 +77,15 @@ export class NyaLingoSettingTab extends PluginSettingTab {
 					})
 			);
 		new Setting(containerEl)
+			.setName("自动启动本地服务")
+			.setDesc("插件加载时若检测到 MTranServer 未运行，自动尝试后台启动。")
+			.addToggle((t) =>
+				t.setValue(this.plugin.settings.autoStartOffline).onChange(async (v) => {
+					this.plugin.settings.autoStartOffline = v;
+					await this.plugin.saveSettings();
+				})
+			);
+		new Setting(containerEl)
 			.setName("访问令牌（可选）")
 			.setDesc("若你的引擎配置了鉴权")
 			.addText((t) =>
@@ -99,6 +108,19 @@ export class NyaLingoSettingTab extends PluginSettingTab {
 			.addButton((b) =>
 				b.setButtonText("测试连接").onClick(async () => {
 					await this.testOffline();
+				})
+			)
+			.addButton((b) =>
+				b.setButtonText("启动本地服务").onClick(async () => {
+					b.setDisabled(true);
+					b.setButtonText("启动中…");
+					try {
+						const r = await this.plugin.startOfflineServer();
+						new Notice(r.ok ? `NyaLingo：本地翻译服务已就绪（${r.detail ?? "运行中"}）。` : `NyaLingo：${r.detail ?? "启动失败"}`, 8000);
+					} finally {
+						b.setDisabled(false);
+						b.setButtonText("启动本地服务");
+					}
 				})
 			);
 
@@ -222,6 +244,17 @@ export class NyaLingoSettingTab extends PluginSettingTab {
 
 	private async testOffline(): Promise<void> {
 		const r = await this.plugin.service.testConnection();
-		new Notice(r.ok ? "NyaLingo：连接成功 ✅" : `NyaLingo：连接失败 — ${r.detail ?? "未知错误"}`);
+		if (r.ok) {
+			new Notice("NyaLingo：连接成功 ✅");
+			return;
+		}
+		const detail = r.detail ?? "未知错误";
+		const refused = /connection refused|ECONNREFUSED|拒绝连接/i.test(detail);
+		new Notice(
+			refused
+				? "NyaLingo：MTranServer 未运行。可点击「启动本地服务」自动启动，或打开 MTranServer 桌面应用后重试。"
+				: `NyaLingo：连接失败 — ${detail}`,
+			8000
+		);
 	}
 }
