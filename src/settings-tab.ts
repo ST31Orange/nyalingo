@@ -66,7 +66,7 @@ export class NyaLingoSettingTab extends PluginSettingTab {
 		containerEl.createEl("h3", { text: "离线翻译（MTranServer）" });
 		new Setting(containerEl)
 			.setName("引擎地址")
-			.setDesc("例如 http://127.0.0.1:8989")
+			.setDesc("MTranServer 默认监听 http://127.0.0.1:8989，通常无需修改；只有你改了端口才需要改这里。")
 			.addText((t) =>
 				t
 					.setPlaceholder("http://127.0.0.1:8989")
@@ -101,6 +101,47 @@ export class NyaLingoSettingTab extends PluginSettingTab {
 					await this.testOffline();
 				})
 			);
+
+		// ---------- 离线语言包 ----------
+		containerEl.createEl("h3", { text: "离线语言包" });
+		containerEl.createEl("p", {
+			cls: "nyalingo-hint",
+			text: "中英互译（en ↔ 简体中文）已默认启用，首次翻译时 MTranServer 会自动下载对应模型。这里只需按需下载其他目标语言的语言包。",
+		});
+		new Setting(containerEl)
+			.setName("中英互译（默认）")
+			.setDesc("en ↔ 简体中文（zh-Hans）已默认启用")
+			.addButton((b) => b.setButtonText("已启用").setDisabled(true));
+
+		const dlRow = new Setting(containerEl).setName("下载其他语言包").setDesc("选择一个目标语言，点击下载后 MTranServer 会自动下载该语言模型。");
+		dlRow.addDropdown((d) => {
+			for (const [code, label] of Object.entries(LANGUAGES)) {
+				if (code === "zh-Hans") continue;
+				d.addOption(code, label);
+			}
+			d.setValue("ja");
+		});
+		dlRow.addButton((b) =>
+			b.setButtonText("下载语言包").onClick(async () => {
+				const code = (dlRow.settingEl.querySelector("select") as HTMLSelectElement | null)?.value ?? "ja";
+				const label = LANGUAGES[code] ?? code;
+				b.setDisabled(true);
+				b.setButtonText("下载中…");
+				try {
+					await this.plugin.downloadOfflineLanguage(code, "en");
+					if (!this.plugin.settings.installedLanguages.includes(code)) {
+						this.plugin.settings.installedLanguages.push(code);
+						await this.plugin.saveSettings();
+					}
+					new Notice(`NyaLingo：${label} 语言包已就绪。`);
+				} catch (e) {
+					new Notice(`NyaLingo：下载失败 — ${e instanceof Error ? e.message : String(e)}`, 8000);
+				} finally {
+					b.setDisabled(false);
+					b.setButtonText("下载语言包");
+				}
+			})
+		);
 
 		// ---------- 在线（OpenAI 兼容） ----------
 		containerEl.createEl("h3", { text: "在线翻译（OpenAI 兼容 / DeepL）" });

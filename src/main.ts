@@ -25,6 +25,8 @@ export interface NyaLingoApi {
 	testConnection(): Promise<{ ok: boolean; detail?: string }>;
 	/** 打开离线引擎安装向导。 */
 	openSetupWizard(): void;
+	/** 触发离线引擎下载某个语言对（MTranServer 自动下载）。 */
+	downloadOfflineLanguage(to: string, from?: string): Promise<void>;
 	/** 清空翻译缓存。 */
 	clearCache(): Promise<void>;
 }
@@ -135,6 +137,10 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 			http: obsidianHttpTransport,
 			onDone: () => new Notice("NyaLingo：翻译服务已就绪。"),
 		});
+	}
+
+	downloadOfflineLanguage(to: string, from = "en"): Promise<void> {
+		return this.service.downloadOfflineLanguage(to, from);
 	}
 
 	async clearCache(): Promise<void> {

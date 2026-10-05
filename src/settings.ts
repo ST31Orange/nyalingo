@@ -15,6 +15,8 @@ export interface NyaLingoSettings {
 	/** 离线引擎（MTranServer） */
 	offlineEndpoint: string;
 	offlineToken: string;
+	/** 已启用的离线语言包（目标语言代码）；默认仅中英互译（zh-Hans）。 */
+	installedLanguages: string[];
 	/** OpenAI 兼容 */
 	openaiBaseUrl: string;
 	openaiApiKey: string;
@@ -33,8 +35,9 @@ export const DEFAULT_SETTINGS: NyaLingoSettings = {
 	provider: "mtran",
 	sourceLanguage: "en",
 	targetLanguage: "zh-Hans",
-	offlineEndpoint: "",
+	offlineEndpoint: "http://127.0.0.1:8989",
 	offlineToken: "",
+	installedLanguages: ["zh-Hans"],
 	openaiBaseUrl: "https://api.openai.com/v1",
 	openaiApiKey: "",
 	openaiModel: "gpt-4o-mini",
@@ -78,8 +81,9 @@ export function normalizeSettings(raw: unknown): NyaLingoSettings {
 		provider: isProvider(v.provider) ? v.provider : DEFAULT_SETTINGS.provider,
 		sourceLanguage: strOr(v.sourceLanguage, DEFAULT_SETTINGS.sourceLanguage),
 		targetLanguage: strOr(v.targetLanguage, DEFAULT_SETTINGS.targetLanguage),
-		offlineEndpoint: strOr(v.offlineEndpoint, ""),
+		offlineEndpoint: strOr(v.offlineEndpoint, "http://127.0.0.1:8989"),
 		offlineToken: strOr(v.offlineToken, ""),
+		installedLanguages: arrayOfStrings(v.installedLanguages).length ? arrayOfStrings(v.installedLanguages) : ["zh-Hans"],
 		openaiBaseUrl: strOr(v.openaiBaseUrl, DEFAULT_SETTINGS.openaiBaseUrl),
 		openaiApiKey: strOr(v.openaiApiKey, ""),
 		openaiModel: strOr(v.openaiModel, DEFAULT_SETTINGS.openaiModel),
@@ -100,4 +104,8 @@ function strOr(v: unknown, fallback: string): string {
 }
 function isProvider(v: unknown): v is TranslationProviderType {
 	return v === "mtran" || v === "openai" || v === "deepl";
+}
+
+function arrayOfStrings(v: unknown): string[] {
+	return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }

@@ -119,6 +119,15 @@ export class TranslationService {
 		return this.provider.healthCheck();
 	}
 
+	/** 触发离线引擎下载某个语言对（MTranServer 首次翻译会自动下载模型）。
+	 *  仅对离线 Provider 有效；在线引擎无需下载语言包，直接返回成功。 */
+	async downloadOfflineLanguage(to: string, from = "en"): Promise<void> {
+		const cfg = this.deps.config();
+		if (cfg.provider !== "mtran") return;
+		// 用一小段文本触发 MTranServer 自动下载该语言对模型
+		await this.provider.translateText("Hello", false, from, to);
+	}
+
 	async clearCache(): Promise<void> {
 		this.cache.clear();
 		await this.cache.persist();
