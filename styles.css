@@ -1,0 +1,14 @@
+/* NyaLingo 样式：设置面板提示与离线安装向导 */
+.nyalingo-hint {
+	opacity: 0.8;
+	margin-bottom: 12px;
+}
+
+.nyalingo-wizard-status {
+	margin: 8px 0 12px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	white-space: pre-line;
+	line-height: 1.5;
+}

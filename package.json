@@ -1,0 +1,25 @@
+{
+	"name": "nyalingo",
+	"version": "0.1.0",
+	"description": "NyaLingo: shared translation service for NyaHome and NyaReader (offline MTranServer + online OpenAI/DeepL).",
+	"main": "main.js",
+	"type": "module",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"typecheck": "tsc -noEmit -skipLibCheck",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"keywords": ["obsidian", "translation", "mtran", "deepl", "openai"],
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "20.19.43",
+		"builtin-modules": "^3.3.0",
+		"esbuild": "0.21.5",
+		"obsidian": "1.13.1",
+		"tslib": "2.8.1",
+		"typescript": "5.9.3",
+		"vitest": "^2.1.9"
+	}
+}
