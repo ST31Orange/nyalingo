@@ -31,7 +31,7 @@ export interface NyaLingoSettings {
 export const DEFAULT_SETTINGS: NyaLingoSettings = {
 	mode: "offline",
 	provider: "mtran",
-	sourceLanguage: "auto",
+	sourceLanguage: "en",
 	targetLanguage: "zh-Hans",
 	offlineEndpoint: "",
 	offlineToken: "",

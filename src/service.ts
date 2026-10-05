@@ -108,7 +108,7 @@ export class TranslationService {
 	/** 连通性测试：返回人类可读结果。 */
 	async testConnection(): Promise<{ ok: boolean; detail?: string }> {
 		try {
-			await this.provider.translateText("ok", false, "auto", this.deps.config().targetLanguage);
+			await this.provider.translateText("ok", false, this.deps.config().sourceLanguage, this.deps.config().targetLanguage);
 			return { ok: true };
 		} catch (e) {
 			return { ok: false, detail: e instanceof Error ? e.message : String(e) };

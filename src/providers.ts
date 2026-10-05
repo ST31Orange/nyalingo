@@ -93,7 +93,7 @@ export class OpenAICompatibleProvider implements ITranslationProvider {
 
 	async healthCheck(): Promise<boolean> {
 		try {
-			await this.translateText("ok", false, "auto", "zh-Hans");
+			await this.translateText("ok", false, this.cfg().sourceLanguage, this.cfg().targetLanguage);
 			return true;
 		} catch {
 			return false;
@@ -140,7 +140,7 @@ export class DeepLProvider implements ITranslationProvider {
 
 	async healthCheck(): Promise<boolean> {
 		try {
-			await this.translateText("ok", false, "auto", "zh-Hans");
+			await this.translateText("ok", false, this.cfg().sourceLanguage, this.cfg().targetLanguage);
 			return true;
 		} catch {
 			return false;
@@ -167,6 +167,8 @@ export class MTranServerProvider implements ITranslationProvider {
 	async translateText(text: string, html: boolean, from: string, to: string): Promise<TranslationTextResult> {
 		const cfg = this.cfg();
 		if (!cfg.offlineEndpoint.trim()) throw new Error("MTranServer 地址未配置。请在 NyaLingo 设置中填写离线引擎地址。");
+		// MTranServer 需要具体源语言码；"auto" 不可用时回退英文。
+		const fromCode = from === "auto" ? "en" : from;
 		const headers: Record<string, string> = { "Content-Type": "application/json" };
 		if (cfg.offlineToken.trim()) headers.Authorization = `Bearer ${cfg.offlineToken.trim()}`;
 		const res = await withTimeout(
@@ -174,7 +176,7 @@ export class MTranServerProvider implements ITranslationProvider {
 				url: this.endpoint(),
 				method: "POST",
 				headers,
-				body: JSON.stringify({ from, to, text, html }),
+				body: JSON.stringify({ from: fromCode, to, text, html }),
 				timeoutMs: cfg.timeoutMs,
 			}),
 			cfg.timeoutMs + 1000
@@ -193,7 +195,7 @@ export class MTranServerProvider implements ITranslationProvider {
 
 	async healthCheck(): Promise<boolean> {
 		try {
-			await this.translateText("ok", false, "auto", "zh-Hans");
+			await this.translateText("ok", false, this.cfg().sourceLanguage, this.cfg().targetLanguage);
 			return true;
 		} catch {
 			return false;
