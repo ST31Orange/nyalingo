@@ -21,6 +21,25 @@ function requireChildProcess(): typeof import("child_process") | null {
 	}
 }
 
+/**
+ * 返回一个可写的本地数据目录（用于 MTranServer 的配置与模型）。
+ * 默认的 ~/.config/mtran 在某些 Windows 机器上被 ACL 限制（只读），
+ * 导致 mtranserver 启动时报 EPERM，因此显式指定到 AppData。
+ */
+function writableDataDir(): string {
+	const platform = process.platform;
+	if (platform === "win32") {
+		const base = process.env.LOCALAPPDATA || process.env.APPDATA || process.env.USERPROFILE || "";
+		return base ? `${base.replace(/\\/g, "/").replace(/\/+$/, "")}/mtranserver` : "";
+	}
+	if (platform === "darwin") {
+		const home = process.env.HOME || "";
+		return home ? `${home}/Library/Application Support/mtranserver` : "";
+	}
+	const xdg = process.env.XDG_DATA_HOME || (process.env.HOME ? `${process.env.HOME}/.local/share` : "");
+	return xdg ? `${xdg.replace(/\/+$/, "")}/mtranserver` : "";
+}
+
 /** 探测服务是否已就绪（间隔轮询，直到超时）。 */
 async function waitForServer(http: HttpTransport, endpoint: string, timeoutMs: number): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
@@ -44,16 +63,29 @@ export async function startOfflineServer(http: HttpTransport, endpoint: string, 
 	const cp = requireChildProcess();
 	if (!cp) return { ok: false, detail: "当前环境无法启动本地服务（缺少 Node child_process）。请手动安装并启动 MTranServer。" };
 
+	const dataDir = writableDataDir();
+	const serverArgs = dataDir ? ["--config-dir", `${dataDir}/config`, "--model-dir", `${dataDir}/models`] : [];
+
 	const candidates: Array<{ cmd: string; args: string[]; label: string }> = [
-		{ cmd: "mtranserver", args: [], label: "mtranserver" },
-		{ cmd: "npx", args: ["--yes", "mtranserver"], label: "npx mtranserver" },
+		{ cmd: "mtranserver", args: serverArgs, label: "mtranserver" },
+		{ cmd: "npx", args: ["--yes", "mtranserver", ...serverArgs], label: "npx mtranserver" },
 	];
 
 	let lastError = "";
 	for (const c of candidates) {
 		try {
-			const child = cp.spawn(c.cmd, c.args, { detached: true, stdio: "ignore", windowsHide: true });
+			// Windows 上 npm 全局命令是 .cmd/.ps1 包装脚本，spawn 需要 shell 才能解析；
+			// 命令为固定常量，无注入风险。
+			const child = cp.spawn(c.cmd, c.args, {
+				detached: true,
+				stdio: "ignore",
+				windowsHide: true,
+				shell: process.platform === "win32",
+			});
 			child.unref();
+			child.on("error", (err) => {
+				lastError = `${c.cmd} 启动失败：${err.message}`;
+			});
 			const ok = await waitForServer(http, endpoint, timeoutMs);
 			if (ok) return { ok: true, detail: `已通过 ${c.label} 启动`, pid: child.pid };
 			lastError = `${c.label} 已启动但服务未就绪（可能仍在下载模型）。`;
