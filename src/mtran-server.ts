@@ -87,11 +87,32 @@ export async function startOfflineServer(http: HttpTransport, endpoint: string, 
 				lastError = `${c.cmd} 启动失败：${err.message}`;
 			});
 			const ok = await waitForServer(http, endpoint, timeoutMs);
-			if (ok) return { ok: true, detail: `已通过 ${c.label} 启动`, pid: child.pid };
+			if (ok) {
+				// 服务已就绪：后台预下载中英互译模型（en-zh / zh-en），
+				// 避免首次翻译因下载模型超时。
+				downloadDefaultModels(cp, dataDir);
+				return { ok: true, detail: `已通过 ${c.label} 启动`, pid: child.pid };
+			}
 			lastError = `${c.label} 已启动但服务未就绪（可能仍在下载模型）。`;
 		} catch (e) {
 			lastError = `${c.cmd} 启动失败：${e instanceof Error ? e.message : String(e)}`;
 		}
 	}
 	return { ok: false, detail: lastError || "无法启动 MTranServer。" };
+}
+
+/** 后台预下载默认语言对（中英互译）模型，非阻塞、失败静默。 */
+function downloadDefaultModels(cp: ReturnType<typeof requireChildProcess>, dataDir: string): void {
+	if (!cp || !dataDir) return;
+	try {
+		const child = cp.spawn("mtranserver", ["--download", "en-zh", "zh-en", "--config-dir", `${dataDir}/config`, "--model-dir", `${dataDir}/models`], {
+			detached: true,
+			stdio: "ignore",
+			windowsHide: true,
+			shell: process.platform === "win32",
+		});
+		child.unref();
+	} catch {
+		/* 预下载失败不影响翻译服务主流程 */
+	}
 }
