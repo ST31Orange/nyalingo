@@ -26,6 +26,8 @@ export interface NyaLingoApi {
 	testConnection(): Promise<{ ok: boolean; detail?: string }>;
 	/** 打开离线引擎安装向导。 */
 	openSetupWizard(): void;
+	/** 打开 NyaLingo 设置面板（真正的配置界面，而非使用向导）。 */
+	openSettings(): void;
 	/** 触发离线引擎下载某个语言对（MTranServer 自动下载）。 */
 	downloadOfflineLanguage(to: string, from?: string): Promise<void>;
 	/** 启动本地离线翻译服务（MTranServer）。 */
@@ -102,6 +104,11 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 		} catch {
 			new Notice("请在设置 → 第三方插件 → NyaLingo 中配置。");
 		}
+	}
+
+	/** NyaLingoApi：供 NyaHome / NyaReader 直接打开本插件设置面板。 */
+	openSettings(): void {
+		this.openSettingsTab();
 	}
 
 	// ---------- NyaLingoApi ----------
