@@ -10,7 +10,7 @@ import { NyaLingoSettingTab } from "./settings-tab";
 import { TranslationService } from "./service";
 import { obsidianHttpTransport } from "./http";
 import { openSetupWizard } from "./setup-wizard";
-import { startOfflineServer } from "./mtran-server";
+import { startOfflineServer, ensureOfflineServer } from "./mtran-server";
 
 /** NyaLingo 对外暴露的公共 API（供 NyaHome / NyaReader 等插件调用）。 */
 export interface NyaLingoApi {
@@ -113,7 +113,10 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 
 	// ---------- NyaLingoApi ----------
 
-	translate(text: string, opts?: { from?: string; to?: string; html?: boolean }): Promise<string> {
+	async translate(text: string, opts?: { from?: string; to?: string; html?: boolean }): Promise<string> {
+		// 每次翻译前确保本地服务可用：服务可能随上次 Obsidian 退出而停止，
+		// 这里按需自动拉起，用户无需手动启动 MTranServer。
+		await this.ensureProviderReady();
 		return this.service.translate(text, opts);
 	}
 
@@ -131,6 +134,8 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 	}
 
 	async testConnection(): Promise<{ ok: boolean; detail?: string }> {
+		const ready = await this.ensureProviderReady().then(() => null).catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+		if (ready) return { ok: false, detail: ready };
 		return this.service.testConnection();
 	}
 
@@ -162,9 +167,24 @@ export default class NyaLingoPlugin extends Plugin implements NyaLingoApi {
 		return startOfflineServer(obsidianHttpTransport, this.settings.offlineEndpoint);
 	}
 
+	/**
+	 * 离线 Provider 就绪保障：
+	 * 先探活，不在运行则自动启动；失败抛出可读错误（而不是让上层看到 ECONNREFUSED）。
+	 */
+	private async ensureProviderReady(): Promise<void> {
+		if (this.settings.provider !== "mtran") return;
+		if (!this.settings.offlineEndpoint.trim()) {
+			throw new Error("本地翻译服务地址未配置。请在 NyaLingo 设置中填写（默认 http://127.0.0.1:8989）。");
+		}
+		const r = await ensureOfflineServer(obsidianHttpTransport, this.settings.offlineEndpoint);
+		if (!r.ok) throw new Error(`本地翻译服务未就绪：${r.detail ?? "未知原因"}`);
+	}
+
 	/** 加载时非阻塞探测并启动本地服务；结果通过 Notice 提示。 */
 	private async autoStartOfflineService(): Promise<void> {
-		const r = await this.startOfflineServer();
+		const r = await ensureOfflineServer(obsidianHttpTransport, this.settings.offlineEndpoint).catch(
+			(e: unknown): { ok: boolean; detail?: string } => ({ ok: false, detail: e instanceof Error ? e.message : String(e) })
+		);
 		if (r.ok) new Notice(`NyaLingo：本地翻译服务已就绪（${r.detail ?? "运行中"}）。`);
 		else new Notice(`NyaLingo：未能自动启动本地翻译服务 — ${r.detail ?? "未知错误"}`, 8000);
 	}

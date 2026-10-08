@@ -12,6 +12,23 @@ export interface StartServerResult {
 	pid?: number;
 }
 
+/** 同一时刻只允许一次"确保服务可用"的启动流程。 */
+let ensureInFlight: Promise<StartServerResult> | null = null;
+
+/**
+ * 确保本地翻译服务可用：先探活，不在运行才启动。
+ * 并发调用共享同一个启动任务，避免把 MTranServer 拉起多次。
+ */
+export async function ensureOfflineServer(http: HttpTransport, endpoint: string, timeoutMs = 60000): Promise<StartServerResult> {
+	const probe = await probeOfflineServer(http, endpoint, 2500);
+	if (probe.running) return { ok: true, detail: "已在运行" };
+	if (ensureInFlight) return ensureInFlight;
+	ensureInFlight = startOfflineServer(http, endpoint, timeoutMs).finally(() => {
+		ensureInFlight = null;
+	});
+	return ensureInFlight;
+}
+
 function requireChildProcess(): typeof import("child_process") | null {
 	try {
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -76,8 +93,11 @@ export async function startOfflineServer(http: HttpTransport, endpoint: string, 
 		try {
 			// Windows 上 npm 全局命令是 .cmd/.ps1 包装脚本，spawn 需要 shell 才能解析；
 			// 命令为固定常量，无注入风险。
+			// 注意：Windows 上 detached:true 会为子进程新建控制台窗口（用户会看到
+			// 一闪而过的黑窗）；这里改为非 detached + windowsHide，让服务跟随
+			// Obsidian 生命周期运行，既无弹窗也能由 ensureOfflineServer 自动拉起。
 			const child = cp.spawn(c.cmd, c.args, {
-				detached: true,
+				detached: false,
 				stdio: "ignore",
 				windowsHide: true,
 				shell: process.platform === "win32",
@@ -88,7 +108,7 @@ export async function startOfflineServer(http: HttpTransport, endpoint: string, 
 			});
 			const ok = await waitForServer(http, endpoint, timeoutMs);
 			if (ok) {
-				// 服务已就绪：后台预下载中英互译模型（en-zh / zh-en），
+				// 服务已就绪：后台预下载中英互译模型（命名与 MTranServer 模型目录一致），
 				// 避免首次翻译因下载模型超时。
 				downloadDefaultModels(cp, dataDir);
 				return { ok: true, detail: `已通过 ${c.label} 启动`, pid: child.pid };
@@ -105,8 +125,9 @@ export async function startOfflineServer(http: HttpTransport, endpoint: string, 
 function downloadDefaultModels(cp: ReturnType<typeof requireChildProcess>, dataDir: string): void {
 	if (!cp || !dataDir) return;
 	try {
-		const child = cp.spawn("mtranserver", ["--download", "en-zh", "zh-en", "--config-dir", `${dataDir}/config`, "--model-dir", `${dataDir}/models`], {
-			detached: true,
+		// 语言对命名沿用 MTranServer 约定：en_zh-Hans / zh-Hans_en
+		const child = cp.spawn("mtranserver", ["--download", "en_zh-Hans", "zh-Hans_en", "--config-dir", `${dataDir}/config`, "--model-dir", `${dataDir}/models`], {
+			detached: false,
 			stdio: "ignore",
 			windowsHide: true,
 			shell: process.platform === "win32",

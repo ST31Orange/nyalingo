@@ -104,14 +104,35 @@ describe("normalizeSettings", () => {
 });
 
 describe("probeOfflineServer", () => {
-	it("languages 2xx 判定运行中", async () => {
+	it("/health 2xx 直接判定运行中", async () => {
 		const http = fakeTransport((url) => {
-			if (url.endsWith("/languages")) return { status: 200, body: JSON.stringify({ languages: [1, 2, 3] }), headers: {} };
+			if (url.endsWith("/health")) return { status: 200, body: JSON.stringify({ status: "ok" }), headers: {} };
 			return { status: 404, body: "", headers: {} };
 		});
 		const r = await probeOfflineServer(http, "http://127.0.0.1:8989/", 1000);
 		expect(r.running).toBe(true);
-		expect(r.detail).toContain("3 种语言");
+		expect(r.detail).toContain("运行中");
+	});
+	it("/health 不可用时退回 /version", async () => {
+		const http = fakeTransport((url) => {
+			if (url.endsWith("/health")) return { status: 404, body: "", headers: {} };
+			if (url.endsWith("/version")) return { status: 200, body: JSON.stringify({ version: "4.0.33" }), headers: {} };
+			return { status: 404, body: "", headers: {} };
+		});
+		const r = await probeOfflineServer(http, "http://127.0.0.1:8989", 1000);
+		expect(r.running).toBe(true);
+	});
+	it("两个探活接口都失败时退回真实翻译（en->zh-Hans）", async () => {
+		const http = fakeTransport((url) => {
+			if (url.endsWith("/health") || url.endsWith("/version")) return { status: 404, body: "", headers: {} };
+			if (url.endsWith("/translate")) {
+				return { status: 200, body: JSON.stringify({ result: "好的" }), headers: {} };
+			}
+			return { status: 404, body: "", headers: {} };
+		});
+		const r = await probeOfflineServer(http, "http://127.0.0.1:8989", 1000);
+		expect(r.running).toBe(true);
+		expect(r.detail).toContain("可翻译");
 	});
 	it("空地址返回未填写", async () => {
 		const http = fakeTransport(() => ({ status: 404, body: "", headers: {} }));
