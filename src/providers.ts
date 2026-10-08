@@ -167,8 +167,9 @@ export class MTranServerProvider implements ITranslationProvider {
 	async translateText(text: string, html: boolean, from: string, to: string): Promise<TranslationTextResult> {
 		const cfg = this.cfg();
 		if (!cfg.offlineEndpoint.trim()) throw new Error("MTranServer 地址未配置。请在 NyaLingo 设置中填写离线引擎地址。");
-		// MTranServer 需要具体源语言码；"auto" 不可用时回退英文。
-		const fromCode = from === "auto" ? "en" : from;
+		// MTranServer /translate 要求具体源语言码，不支持 "auto"。
+		// 源语言为 auto 时先用 /detect 识别，识别失败回退 en，避免错误语言对产生废译文。
+		const fromCode = from === "auto" ? await this.detectLanguage(text) : from;
 		const headers: Record<string, string> = { "Content-Type": "application/json" };
 		if (cfg.offlineToken.trim()) headers.Authorization = `Bearer ${cfg.offlineToken.trim()}`;
 		const res = await withTimeout(
@@ -191,6 +192,30 @@ export class MTranServerProvider implements ITranslationProvider {
 		const translated = typeof parsed.translatedText === "string" ? parsed.translatedText : parsed.result;
 		if (typeof translated !== "string") throw new Error("MTranServer 响应缺少译文。");
 		return { translatedText: translated, fromCache: false };
+	}
+
+	/** 通过 MTranServer /detect 识别文本语言；失败回退 "en"。 */
+	private async detectLanguage(text: string): Promise<string> {
+		const cfg = this.cfg();
+		const base = cfg.offlineEndpoint.trim().replace(/\/+$/, "");
+		try {
+			const res = await withTimeout(
+				this.deps.http.request({
+					url: `${base}/detect`,
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					// 注意：/detect 的 schema 只接受 text，多余的字段会 500
+					body: JSON.stringify({ text: text.slice(0, 1000) }),
+					timeoutMs: Math.min(cfg.timeoutMs, 8000),
+				}),
+				10000
+			);
+			if (res.status >= 400) return "en";
+			const parsed = JSON.parse(res.body) as { language?: string };
+			return typeof parsed.language === "string" && parsed.language ? parsed.language : "en";
+		} catch {
+			return "en";
+		}
 	}
 
 	async healthCheck(): Promise<boolean> {

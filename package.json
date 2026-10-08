@@ -1,6 +1,6 @@
 {
 	"name": "nyalingo",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "NyaLingo: shared translation service for NyaHome and NyaReader (offline MTranServer + online OpenAI/DeepL).",
 	"main": "main.js",
 	"type": "module",

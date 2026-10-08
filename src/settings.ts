@@ -10,6 +10,7 @@ export interface NyaLingoSettings {
 	mode: TranslationMode;
 	provider: TranslationProviderType;
 	/** 默认语言对 */
+	/** 默认源语言；"auto" 表示由离线引擎自动识别（MTranServer /detect） */
 	sourceLanguage: string;
 	targetLanguage: string;
 	/** 离线引擎（MTranServer） */
@@ -35,7 +36,7 @@ export interface NyaLingoSettings {
 export const DEFAULT_SETTINGS: NyaLingoSettings = {
 	mode: "offline",
 	provider: "mtran",
-	sourceLanguage: "en",
+	sourceLanguage: "auto",
 	targetLanguage: "zh-Hans",
 	offlineEndpoint: "http://127.0.0.1:8989",
 	offlineToken: "",

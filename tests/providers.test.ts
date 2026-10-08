@@ -69,18 +69,47 @@ describe("DeepLProvider", () => {
 describe("MTranServerProvider", () => {
 	const mtranCfg = cfg({ offlineEndpoint: "http://127.0.0.1:8989", offlineToken: "tok" });
 
-	it("POST /translate 并解析 translatedText", async () => {
+	it("显式源语言时直接 POST /translate 并解析 translatedText", async () => {
 		const transport = fakeTransport((url, body, headers) => {
 			expect(url).toBe("http://127.0.0.1:8989/translate");
 			expect(headers.Authorization).toBe("Bearer tok");
-			const payload = JSON.parse(body) as { text: string; to: string };
+			const payload = JSON.parse(body) as { text: string; to: string; from: string };
 			expect(payload.text).toBe("hello");
 			expect(payload.to).toBe("zh-Hans");
+			expect(payload.from).toBe("en");
 			return { status: 200, body: JSON.stringify({ translatedText: "你好" }), headers: {} };
 		});
 		const p = new MTranServerProvider({ config: mtranCfg, http: transport });
-		const result = await p.translateText("hello", false, "auto", "zh-Hans");
+		const result = await p.translateText("hello", false, "en", "zh-Hans");
 		expect(result.translatedText).toBe("你好");
+	});
+	it('源语言为 auto 时先 /detect 识别再按识别结果翻译', async () => {
+		const transport = fakeTransport((url, body) => {
+			if (url.endsWith("/detect")) {
+				const payload = JSON.parse(body) as { text: string };
+				expect(payload.text).toBe("你好世界");
+				return { status: 200, body: JSON.stringify({ language: "zh-Hans" }), headers: {} };
+			}
+			expect(url).toBe("http://127.0.0.1:8989/translate");
+			const payload = JSON.parse(body) as { from: string; to: string };
+			expect(payload.from).toBe("zh-Hans");
+			expect(payload.to).toBe("en");
+			return { status: 200, body: JSON.stringify({ result: "Hello world" }), headers: {} };
+		});
+		const p = new MTranServerProvider({ config: mtranCfg, http: transport });
+		const result = await p.translateText("你好世界", false, "auto", "en");
+		expect(result.translatedText).toBe("Hello world");
+	});
+	it("/detect 失败时回退 en 不中断翻译", async () => {
+		const transport = fakeTransport((url, body) => {
+			if (url.endsWith("/detect")) return { status: 500, body: "", headers: {} };
+			const payload = JSON.parse(body) as { from: string };
+			expect(payload.from).toBe("en");
+			return { status: 200, body: JSON.stringify({ result: "ok" }), headers: {} };
+		});
+		const p = new MTranServerProvider({ config: mtranCfg, http: transport });
+		const result = await p.translateText("hello", false, "auto", "zh-Hans");
+		expect(result.translatedText).toBe("ok");
 	});
 	it("未配置地址抛出错误", async () => {
 		const transport = fakeTransport(() => ({ status: 200, body: "{}", headers: {} }));
